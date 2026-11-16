@@ -43,14 +43,66 @@ td.gain{color:var(--gain);font-weight:600}td.loss{color:var(--loss);font-weight:
 .msg{padding:1rem;border-radius:6px;margin-bottom:1rem}
 .err{background:#f6dcd8;color:#6d1f17}.warn{background:#f4ecd0;color:#52440d}
 .empty{color:var(--mute);padding:2rem 0}
+.guide{margin-top:1.6rem;display:grid;grid-template-columns:1fr 1fr;gap:1.4rem}
+@media(max-width:900px){.guide{grid-template-columns:1fr}}
+.guide h2{margin-bottom:.5rem}
+.guide p{margin:.4rem 0}
+.guide ol{margin:.4rem 0 0;padding-left:1.2rem}
+.guide li{margin:.45rem 0}
+details{margin-top:.6rem;border-top:1px solid var(--line);padding-top:.6rem}
+summary{cursor:pointer;font-weight:600}
+dl{margin:.6rem 0 0;display:grid;grid-template-columns:auto 1fr;gap:.35rem .9rem;font-size:.9rem}
+dt{font-weight:600}dd{margin:0;color:var(--mute)}
 </style>
 </head>
 <body>
 <div class="wrap">
 <header>
   <h1>Kujata flip board</h1>
-  <p>Live Universalis prices for Kujata, compared against NPC prices and the other Elemental worlds. Add items, press Scan, and read the ranking.</p>
+  <p>Find FFXIV crafting materials worth reselling on Kujata, using live Market Board data.</p>
 </header>
+
+<section class="guide" aria-label="About this site">
+  <div class="panel">
+    <h2>What this site is for</h2>
+    <p>In Final Fantasy XIV, many players pay extra on the Market Board to skip a teleport, a gathering trip or a crafting step. This board finds the crafting materials, ingredients and consumables where you can profit from that convenience on <b>Kujata</b>.</p>
+    <p>It buys nothing and sells nothing. For each item you list, it checks current Market Board data from Universalis and tells you what is worth buying, from where, and how much you could earn.</p>
+    <p><b>It helps you answer:</b> What sells fast on Kujata? What is cheap from an NPC or another Elemental world? After the Market Board tax, what do I actually keep? Where should my gil go first?</p>
+  </div>
+  <div class="panel">
+    <h2>How to use it</h2>
+    <ol>
+      <li>Check the item list on the left. Edit it, or add your own items, one per line.</li>
+      <li>Set your <b>share</b> (the part of Kujata's daily sales you expect to win), the <b>tax</b>, and your <b>budget</b>.</li>
+      <li>Press <b>Scan Kujata</b> and wait up to a minute.</li>
+      <li>Read the three picks at the top, then the table. Click any column heading to sort.</li>
+      <li>Before buying, confirm the NPC vendor and location on Garland Tools (garlandtools.org), then list a small test batch in game.</li>
+    </ol>
+    <details>
+      <summary>What the table columns mean</summary>
+      <dl>
+        <dt>Buy from</dt><dd>The cheapest source: an NPC, or another Elemental world. To buy on another world, use World Visit. You can buy there, but you can only sell on Kujata.</dd>
+        <dt>Cost</dt><dd>Gil you pay per unit.</dd>
+        <dt>Avg sale (7d)</dt><dd>What Kujata buyers actually paid per unit over the last week.</dd>
+        <dt>Sold/day</dt><dd>Units that sell on Kujata each day. Higher means faster turnover.</dd>
+        <dt>Listings</dt><dd>How many sellers you compete with. Fewer is better.</dd>
+        <dt>Net/unit</dt><dd>Avg sale after tax, minus cost. This is your profit per item.</dd>
+        <dt>ROI %</dt><dd>Net profit divided by cost.</dd>
+        <dt>Daily profit</dt><dd>Net/unit × Sold/day × your share. A realistic estimate, not a promise.</dd>
+        <dt>Start qty</dt><dd>A cautious first purchase: about 3 days of sales, within your budget.</dd>
+        <dt>Score</dt><dd>Overall rank out of 100. Weights: demand 30%, daily profit 25%, ease of getting the item 20%, competition 15%, ROI 10%.</dd>
+      </dl>
+    </details>
+    <details>
+      <summary>Good to know</summary>
+      <dl>
+        <dt>Prices</dt><dd>They come from players' uploads, so quiet items can be stale or missing. Check the fetched time under the table.</dd>
+        <dt>Asterisk (*)</dt><dd>The NPC price is from game data, and no vendor is confirmed. Verify it first.</dd>
+        <dt>Best habit</dt><dd>Many small items that sell daily beat one item that might sell next month.</dd>
+      </dl>
+    </details>
+  </div>
+</section>
 
 <div class="layout">
   <section class="panel" aria-label="Scan settings">
@@ -88,6 +140,7 @@ Raisins, 1</textarea>
 <script>
 const $ = id => document.getElementById(id);
 const fmt = n => n == null ? '–' : Number(n).toLocaleString('en-US');
+const gmt8 = iso => new Date(iso).toLocaleString('en-GB', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' (GMT+8)';
 let rows = [], sortKey = 'score', sortDir = -1;
 
 function parseItems() {
@@ -138,7 +191,7 @@ function render(d) {
   h += '<div class="panel tablebox"><table><thead><tr><th>#</th>' +
     COLS.map(([k, t]) => `<th data-k="${k}" title="Sort by ${t}">${t}</th>`).join('') +
     '</tr></thead><tbody id="tb"></tbody></table></div>';
-  h += `<p class="meta">Fetched ${d.fetched} UTC. Tax ${(d.tax * 100).toFixed(1)}%, your share of sales ${(d.share * 100).toFixed(0)}%. Start qty is about 3 days of your share, split across the top profitable items within your budget. "Game data price" for an NPC cost means no vendor has been confirmed, so check on Garland Tools before buying.</p>`;
+  h += `<p class="meta">Fetched ${gmt8(d.fetched)}. Tax ${(d.tax * 100).toFixed(1)}%, your share of sales ${(d.share * 100).toFixed(0)}%. Start qty is about 3 days of your share, split across the top profitable items within your budget. "Game data price" for an NPC cost means no vendor has been confirmed, so check on Garland Tools before buying.</p>`;
   $('out').innerHTML = h;
   document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
     const k = th.dataset.k; sortDir = sortKey === k ? -sortDir : -1; sortKey = k; body();
