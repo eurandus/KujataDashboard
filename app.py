@@ -2,7 +2,7 @@
 Body: {"items":[{"name":"Animal Glue","ease":1,"npc":8}, {"id":5503}], "share":0.15, "tax":0.05, "budget":100000}
 Pulls live Universalis data for Kujata + the other Elemental worlds and ranks the items.
 """
-import json, math, time, datetime as dt
+import json, math, time, statistics, datetime as dt
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from flask import Flask, request, jsonify, Response
@@ -108,7 +108,8 @@ def scan(body):
     rows = []
     for m in metas:
         h = stats.get(m["id"], {})
-        hist = [x for x in h.get("recentHistory", []) if not x.get("hq")]
+        hist = sorted((x for x in h.get("recentHistory", []) if not x.get("hq")),
+                      key=lambda x: -x.get("timestamp", 0))
         week = [x for x in hist if x.get("timestamp", 0) >= cutoff]
         sold_7d = sum(x["quantity"] for x in week)
         days_sold = len({int(x["timestamp"] // 86400) for x in week})
@@ -117,17 +118,49 @@ def scan(body):
         vel = (h.get("nqSaleVelocity") or sold_7d / 7) if capped else sold_7d / 7
         if sold_7d == 0:
             vel = 0
-        avg = sum(x["pricePerUnit"] * x["quantity"] for x in week) / sold_7d if sold_7d else None
-        sell = avg or min_nq(h)
-        cost = float(m["npc"]) if m["npc"] else None
-        net = sell * (1 - tax) - cost if sell and cost else None
+        median = statistics.median(x["pricePerUnit"] for x in week) if week else None
+        last10 = [dict(price=x["pricePerUnit"], qty=x["quantity"], ts=x["timestamp"]) for x in hist[:10]]
+        lowest = min_nq(h)
         listings = h.get("listingsCount") or 0
+        cost = float(m["npc"]) if m["npc"] else None
+        floor = cost / (1 - tax) if cost else None
+
+        # recommended listing price: undercut today's cheapest listing by 1% (at least 1 gil)
+        rec, rec_note = None, ""
+        if lowest:
+            rec = max(1, lowest - max(1, round(lowest * 0.01)))
+            if floor and rec < floor:
+                rec_note = f"Below break-even ({math.ceil(floor)})"
+        else:
+            rec_note = "No competing listings"
+        # profit basis: the lower of what you'd list at and the 7-day median
+        basis = min(p for p in (rec, median) if p) if (rec or median) else None
+        net = basis * (1 - tax) - cost if basis and cost else None
+
+        warnings = []
+        top = max(median or 0, lowest or 0)
+        if cost and top / cost >= 10:
+            warnings.append(f"Market price is {top / cost:.0f}x the NPC price. Confirm the NPC price and that a vendor really sells it.")
+        elif cost and m["npc_note"].startswith("game") and top / cost >= 3:
+            warnings.append("The NPC price comes from game data and is unconfirmed, and the market gap is large.")
+        if median:
+            hi = sum(1 for x in last10 if x["price"] > 2 * median)
+            if hi:
+                warnings.append(f"{hi} of the last 10 sales were over 2x the 7-day median. Treat high prices as one-offs.")
+            if lowest and lowest > 2 * median:
+                warnings.append("The cheapest listing is over 2x the median, so listings may be inflated and slow to sell.")
+        if 0 < sold_7d < 3:
+            warnings.append("Only a few sales this week, so the price is thin evidence.")
+        if sold_7d == 0:
+            warnings.append("No sales in the last 7 days.")
+
         eff_share = min(share, 1 / (listings + 1))      # you cannot beat your fair share by much
         real_units = vel * eff_share
         fresh, age_h = freshness(h.get("lastUploadTime"), now)
         rows.append(dict(
             id=m["id"], item=m["name"], cost=cost, npc_note=m["npc_note"],
-            kujata_min=min_nq(h), avg_sale=round(avg) if avg else None,
+            lowest=lowest, median=round(median) if median else None,
+            rec=rec, rec_note=rec_note, last10=last10, warnings=warnings,
             sold_7d=sold_7d, days_sold=days_sold, sales_per_day=round(vel, 2), listings=listings,
             net=round(net) if net is not None else None,
             roi=round(net / cost * 100, 1) if net is not None and cost else None,

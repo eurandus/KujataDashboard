@@ -44,6 +44,12 @@ td.gain{color:var(--gain);font-weight:600}td.loss{color:var(--loss);font-weight:
 .msg{padding:1rem;border-radius:6px;margin-bottom:1rem}
 .err{background:#f6dcd8;color:#6d1f17}.warn{background:#f4ecd0;color:#52440d}
 .empty{color:var(--mute);padding:2rem 0}
+.detail td{background:#eef3f6;text-align:left;white-space:normal;padding:.8rem 1rem}
+.detail table{width:auto;font-size:.82rem}.detail th,.detail td{padding:.25rem .8rem;border:0;background:none;position:static;cursor:default}
+.detail th:hover{background:none}.hi{color:var(--loss);font-weight:600}
+.item-btn{all:unset;cursor:pointer;font-weight:600;border-bottom:1px dotted var(--mute)}.item-btn:focus-visible{outline:3px solid #2a8fb3}
+.warnlist{margin:.4rem 0 .8rem;padding-left:1.1rem;color:#6a4a00}
+.tag.flag{background:#f4e0b0;color:#6a4a00}
 .tag{font-size:.78rem;padding:.1rem .45rem;border-radius:3px}.tag.ok{background:#d6eee6;color:#0b5b4c}.tag.bad{background:#f4e0b0;color:#6a4a00}
 .guide{margin-top:1.6rem;display:grid;grid-template-columns:1fr 1fr;gap:1.4rem}
 @media(max-width:900px){.guide{grid-template-columns:1fr}}
@@ -76,22 +82,25 @@ dt{font-weight:600}dd{margin:0;color:var(--mute)}
     <ol>
       <li>Check the item list on the left. Edit it, or add your own items, one per line.</li>
       <li>Set your <b>share</b> (the part of Kujata's daily sales you expect to win), the <b>tax</b>, and your <b>budget</b>.</li>
-      <li>Press <b>Scan</b>, then read the three picks and the table. Click any column heading to sort.</li>
+      <li>Press <b>Scan</b>, then read the three picks and the table. Click any column heading to sort, or click an item name to see its last 10 sales.</li>
       <li>Before buying, confirm the NPC vendor and location on Garland Tools (garlandtools.org), then list a small test batch in game.</li>
     </ol>
     <details>
       <summary>What the table columns mean</summary>
       <dl>
         <dt>NPC cost</dt><dd>Gil you pay per unit. Enter it yourself if you know it.</dd>
-        <dt>Avg sale (7d)</dt><dd>What Kujata buyers actually paid per unit over the last week.</dd>
+        
+        <dt>Lowest listing</dt><dd>The cheapest normal-quality listing on Kujata right now. This is what you compete against.</dd>
+        <dt>7d median</dt><dd>The middle sale price from the past week. One strange sale cannot move it much.</dd>
+        <dt>List at</dt><dd>Suggested price: 1% under today's cheapest listing, at least 1 gil. It uses current listings, not past averages. A "!" means it is below break-even or there are no competitors.</dd>
         <dt>Sold in 7d</dt><dd>Units that actually sold on Kujata in the past week. An item with 0 is never picked.</dd>
         <dt>Sold/day</dt><dd>Units sold per day on average.</dd>
         <dt>Listings</dt><dd>How many sellers you compete with. Fewer is better.</dd>
-        <dt>Net/unit</dt><dd>Avg sale after tax, minus cost. This is your profit per item.</dd>
+        <dt>Net/unit</dt><dd>Price after tax, minus cost. The price used is the lower of "List at" and the 7d median, so it is cautious.</dd>
         <dt>Daily profit</dt><dd>Net/unit × the units per day you can realistically win. That is the lower of your share and a fair split among all current sellers. Table ranking uses this.</dd>
         <dt>Start qty</dt><dd>A cautious first purchase: about 3 days of your realizable sales, within your budget. Items at 0 are excluded from picks.</dd>
         <dt>Data</dt><dd>Fresh means a player uploaded Kujata data in the last 48 hours. Stale is 2–7 days, Very stale is over 7 days.</dd>
-        <dt>Score</dt><dd>Extra reference out of 100, not the ranking. Weights: demand 30%, daily profit 25%, ease of getting the item 20%, competition 15%, ROI 10%.</dd>
+        <dt>Flags</dt><dd>Warnings such as a market price 10x or more above the NPC price (check the NPC price is right), high one-off sales, or inflated listings. Click the item name to read them.</dd>
       </dl>
     </details>
     <details>
@@ -136,7 +145,7 @@ Raisins, 1</textarea>
     <div id="out"><p class="empty">No scan yet. Press Scan to pull current prices.</p></div>
   </section>
 </div>
-<p class="meta" style="margin-top:2rem">Page version 16 Nov 2026 (c): Kujata only, stale-data flags, realizable-profit ranking.</p>
+<p class="meta" style="margin-top:2rem">Page version 16 Nov 2026 (d): listing price, median, last 10 sales, profit warnings.</p>
 </div>
 
 <script>
@@ -172,8 +181,8 @@ $('go').addEventListener('click', async () => {
 });
 
 const COLS = [
-  ['item','Item'],['cost','NPC cost'],['avg_sale','Avg sale (7d)'],['sold_7d','Sold in 7d'],['sales_per_day','Sold/day'],
-  ['listings','Listings'],['net','Net/unit'],['daily_profit','Daily profit'],['start_qty','Start qty'],['data','Data'],['score','Score']
+  ['item','Item'],['cost','NPC cost'],['lowest','Lowest listing'],['median','7d median'],['rec','List at'],
+  ['sold_7d','Sold in 7d'],['listings','Listings'],['net','Net/unit'],['daily_profit','Daily profit'],['start_qty','Start qty'],['data','Data'],['warnings','Flags']
 ];
 
 function render(d) {
@@ -193,7 +202,7 @@ function render(d) {
   h += '<div class="panel tablebox"><table><thead><tr><th>#</th>' +
     COLS.map(([k, t]) => `<th data-k="${k}" title="Sort by ${t}">${t}</th>`).join('') +
     '</tr></thead><tbody id="tb"></tbody></table></div>';
-  h += `<p class="meta">Fetched ${gmt8(d.fetched)}. Tax ${(d.tax * 100).toFixed(1)}%, your share of sales ${(d.share * 100).toFixed(0)}%. Items are ranked by realizable daily profit. Picks only include items that sold in the last 7 days and have a start qty above 0. Rows marked Stale or Very stale rest on old uploads, so confirm in game before buying. An asterisk on the cost means no vendor is confirmed.</p>`;
+  h += `<p class="meta">Fetched ${gmt8(d.fetched)}. Tax ${(d.tax * 100).toFixed(1)}%, your share of sales ${(d.share * 100).toFixed(0)}%. Items are ranked by realizable daily profit. Picks only include items that sold in the last 7 days and have a start qty above 0. Rows marked Stale or Very stale, or with warnings, rest on old uploads, so confirm in game before buying. An asterisk on the cost means no vendor is confirmed.</p>`;
   $('out').innerHTML = h;
   document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
     const k = th.dataset.k; sortDir = sortKey === k ? -sortDir : -1; sortKey = k; body();
@@ -201,18 +210,39 @@ function render(d) {
   body();
 }
 
+const open = new Set();
+const when = ts => new Date(ts * 1000).toLocaleString('en-GB', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
 function body() {
+  const val = r => sortKey === 'warnings' ? r.warnings.length : r[sortKey];
   const s = [...rows].sort((a, b) => {
-    const x = a[sortKey], y = b[sortKey];
+    const x = val(a), y = val(b);
     if (x == null) return 1; if (y == null) return -1;
     return (typeof x === 'string' ? x.localeCompare(y) : x - y) * sortDir;
   });
-  $('tb').innerHTML = s.map((r, i) => `<tr><td>${i + 1}</td><td>${r.item}</td>
+  $('tb').innerHTML = s.map((r, i) => {
+    const hi = r.median ? r.median * 2 : Infinity;
+    const tx = r.last10.length ? `<table><thead><tr><th>Sold (GMT+8)</th><th>Qty</th><th>Per unit</th><th>Total</th></tr></thead><tbody>` +
+      r.last10.map(t => `<tr><td>${when(t.ts)}</td><td>${t.qty}</td><td class="${t.price > hi ? 'hi' : ''}">${fmt(t.price)}${t.price > hi ? ' (over 2x median)' : ''}</td><td>${fmt(t.price * t.qty)}</td></tr>`).join('') + '</tbody></table>'
+      : '<p>No recorded sales.</p>';
+    const wl = r.warnings.length ? `<ul class="warnlist">${r.warnings.map(w => `<li>${w}</li>`).join('')}</ul>` : '';
+    const isOpen = open.has(r.id);
+    return `<tr><td>${i + 1}</td><td><button class="item-btn" data-id="${r.id}" aria-expanded="${isOpen}" title="Show last 10 sales">${r.item}</button></td>
     <td title="${r.npc_note || ''}">${fmt(r.cost)}${r.npc_note.startsWith('game') ? ' *' : ''}</td>
-    <td>${fmt(r.avg_sale)}</td><td>${r.sold_7d}</td><td>${r.sales_per_day}</td><td>${fmt(r.listings)}</td>
+    <td>${fmt(r.lowest)}</td><td>${fmt(r.median)}</td>
+    <td title="${r.rec_note || 'One percent under the cheapest listing now'}">${fmt(r.rec)}${r.rec_note ? ' !' : ''}</td>
+    <td>${r.sold_7d}</td><td>${fmt(r.listings)}</td>
     <td class="${r.net > 0 ? 'gain' : 'loss'}">${fmt(r.net)}</td>
     <td class="${r.daily_profit > 0 ? 'gain' : 'loss'}">${fmt(r.daily_profit)}</td><td>${fmt(r.start_qty)}</td>
-    <td><span class="tag ${r.data === 'Fresh' ? 'ok' : 'bad'}" title="${r.data_age_h == null ? 'No upload recorded' : 'Last upload ' + r.data_age_h + 'h ago'}">${r.data}${r.data_age_h != null && r.data !== 'Fresh' ? ' ' + r.data_age_h + 'h' : ''}</span></td><td>${r.score}</td></tr>`).join('');
+    <td><span class="tag ${r.data === 'Fresh' ? 'ok' : 'bad'}" title="${r.data_age_h == null ? 'No upload recorded' : 'Last upload ' + r.data_age_h + 'h ago'}">${r.data}${r.data_age_h != null && r.data !== 'Fresh' ? ' ' + r.data_age_h + 'h' : ''}</span></td>
+    <td>${r.warnings.length ? `<span class="tag flag">${r.warnings.length} warning${r.warnings.length > 1 ? 's' : ''}</span>` : ''}</td></tr>
+    <tr class="detail" ${isOpen ? '' : 'hidden'}><td colspan="13"><b>Last 10 normal-quality sales</b>${rec_line(r)}${wl}${tx}</td></tr>`;
+  }).join('');
+  document.querySelectorAll('.item-btn').forEach(b => b.onclick = () => {
+    const id = +b.dataset.id; open.has(id) ? open.delete(id) : open.add(id); body();
+  });
+}
+function rec_line(r) {
+  return r.rec_note ? `<p class="meta">Listing note: ${r.rec_note}.</p>` : '';
 }
 </script>
 </body>
