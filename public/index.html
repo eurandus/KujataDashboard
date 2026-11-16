@@ -21,7 +21,8 @@ header p{margin:.6rem 0 0;color:var(--mute);max-width:62ch}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:1.1rem}
 label{display:block;font-weight:600;font-size:.88rem;margin:1rem 0 .3rem}
 label small{font-weight:400;color:var(--mute)}
-textarea,input{width:100%;font:inherit;border:1px solid var(--line);border-radius:4px;padding:.5rem .6rem;background:#fff;color:var(--ink)}
+textarea,input,select{width:100%;font:inherit;border:1px solid var(--line);border-radius:4px;padding:.5rem .6rem;background:#fff;color:var(--ink)}
+select{margin-bottom:.2rem}
 textarea{min-height:230px;font-family:ui-monospace,Menlo,monospace;font-size:.82rem}
 .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem}
 button.go{margin-top:1.1rem;width:100%;font:600 1rem "IBM Plex Sans";background:var(--ink);color:#fff;border:0;border-radius:4px;padding:.75rem;cursor:pointer}
@@ -43,6 +44,7 @@ td.gain{color:var(--gain);font-weight:600}td.loss{color:var(--loss);font-weight:
 .msg{padding:1rem;border-radius:6px;margin-bottom:1rem}
 .err{background:#f6dcd8;color:#6d1f17}.warn{background:#f4ecd0;color:#52440d}
 .empty{color:var(--mute);padding:2rem 0}
+.tag{font-size:.78rem;padding:.1rem .45rem;border-radius:3px}.tag.ok{background:#d6eee6;color:#0b5b4c}.tag.bad{background:#f4e0b0;color:#6a4a00}
 .guide{margin-top:1.6rem;display:grid;grid-template-columns:1fr 1fr;gap:1.4rem}
 @media(max-width:900px){.guide{grid-template-columns:1fr}}
 .guide h2{margin-bottom:.5rem}
@@ -67,30 +69,29 @@ dt{font-weight:600}dd{margin:0;color:var(--mute)}
     <h2>What this site is for</h2>
     <p>In Final Fantasy XIV, many players pay extra on the Market Board to skip a teleport, a gathering trip or a crafting step. This board finds the crafting materials, ingredients and consumables where you can profit from that convenience on <b>Kujata</b>.</p>
     <p>It buys nothing and sells nothing. For each item you list, it checks current Market Board data from Universalis and tells you what is worth buying, from where, and how much you could earn.</p>
-    <p><b>It helps you answer:</b> What sells fast on Kujata? What is cheap from an NPC or another Elemental world? After the Market Board tax, what do I actually keep? Where should my gil go first?</p>
+    <p><b>It helps you answer:</b> What sells fast on Kujata? What can I buy cheaply from an NPC? After the Market Board tax, what do I actually keep? Where should my gil go first?</p>
   </div>
   <div class="panel">
     <h2>How to use it</h2>
     <ol>
       <li>Check the item list on the left. Edit it, or add your own items, one per line.</li>
       <li>Set your <b>share</b> (the part of Kujata's daily sales you expect to win), the <b>tax</b>, and your <b>budget</b>.</li>
-      <li>Press <b>Scan Kujata</b> and wait up to a minute.</li>
-      <li>Read the three picks at the top, then the table. Click any column heading to sort.</li>
+      <li>Press <b>Scan</b>, then read the three picks and the table. Click any column heading to sort.</li>
       <li>Before buying, confirm the NPC vendor and location on Garland Tools (garlandtools.org), then list a small test batch in game.</li>
     </ol>
     <details>
       <summary>What the table columns mean</summary>
       <dl>
-        <dt>Buy from</dt><dd>The cheapest source: an NPC, or another Elemental world. To buy on another world, use World Visit. You can buy there, but you can only sell on Kujata.</dd>
-        <dt>Cost</dt><dd>Gil you pay per unit.</dd>
+        <dt>NPC cost</dt><dd>Gil you pay per unit. Enter it yourself if you know it.</dd>
         <dt>Avg sale (7d)</dt><dd>What Kujata buyers actually paid per unit over the last week.</dd>
-        <dt>Sold/day</dt><dd>Units that sell on Kujata each day. Higher means faster turnover.</dd>
+        <dt>Sold in 7d</dt><dd>Units that actually sold on Kujata in the past week. An item with 0 is never picked.</dd>
+        <dt>Sold/day</dt><dd>Units sold per day on average.</dd>
         <dt>Listings</dt><dd>How many sellers you compete with. Fewer is better.</dd>
         <dt>Net/unit</dt><dd>Avg sale after tax, minus cost. This is your profit per item.</dd>
-        <dt>ROI %</dt><dd>Net profit divided by cost.</dd>
-        <dt>Daily profit</dt><dd>Net/unit × Sold/day × your share. A realistic estimate, not a promise.</dd>
-        <dt>Start qty</dt><dd>A cautious first purchase: about 3 days of sales, within your budget.</dd>
-        <dt>Score</dt><dd>Overall rank out of 100. Weights: demand 30%, daily profit 25%, ease of getting the item 20%, competition 15%, ROI 10%.</dd>
+        <dt>Daily profit</dt><dd>Net/unit × the units per day you can realistically win. That is the lower of your share and a fair split among all current sellers. Table ranking uses this.</dd>
+        <dt>Start qty</dt><dd>A cautious first purchase: about 3 days of your realizable sales, within your budget. Items at 0 are excluded from picks.</dd>
+        <dt>Data</dt><dd>Fresh means a player uploaded Kujata data in the last 48 hours. Stale is 2–7 days, Very stale is over 7 days.</dd>
+        <dt>Score</dt><dd>Extra reference out of 100, not the ranking. Weights: demand 30%, daily profit 25%, ease of getting the item 20%, competition 15%, ROI 10%.</dd>
       </dl>
     </details>
     <details>
@@ -128,20 +129,21 @@ Raisins, 1</textarea>
       <div><label for="tax">Tax <small>%</small></label><input id="tax" type="number" value="5" min="0" max="20" step="0.5"></div>
       <div><label for="budget">Budget <small>gil</small></label><input id="budget" type="number" value="100000" min="1000" step="1000"></div>
     </div>
-    <button class="go" id="go">Scan Kujata</button>
+    <button class="go" id="go">Scan</button>
   </section>
 
   <section aria-live="polite">
-    <div id="out"><p class="empty">No scan yet. Press Scan Kujata to pull current prices.</p></div>
+    <div id="out"><p class="empty">No scan yet. Press Scan to pull current prices.</p></div>
   </section>
 </div>
+<p class="meta" style="margin-top:2rem">Page version 16 Nov 2026 (c): Kujata only, stale-data flags, realizable-profit ranking.</p>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
 const fmt = n => n == null ? '–' : Number(n).toLocaleString('en-US');
 const gmt8 = iso => new Date(iso).toLocaleString('en-GB', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' (GMT+8)';
-let rows = [], sortKey = 'score', sortDir = -1;
+let rows = [], sortKey = 'daily_profit', sortDir = -1;
 
 function parseItems() {
   return $('items').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
@@ -166,32 +168,32 @@ $('go').addEventListener('click', async () => {
     rows = d.rows; render(d);
   } catch (e) {
     $('out').innerHTML = `<div class="msg err"><b>Scan failed.</b> ${e.message}. Check the item names, then try again. If it keeps failing, Universalis may be slow; wait a minute and retry.</div>`;
-  } finally { btn.disabled = false; btn.textContent = 'Scan Kujata'; }
+  } finally { btn.disabled = false; btn.textContent = 'Scan'; }
 });
 
 const COLS = [
-  ['item','Item'],['buy_from','Buy from'],['cost','Cost'],['avg_sale','Avg sale (7d)'],['sales_per_day','Sold/day'],
-  ['listings','Listings'],['net','Net/unit'],['roi','ROI %'],['daily_profit','Daily profit'],['start_qty','Start qty'],['score','Score']
+  ['item','Item'],['cost','NPC cost'],['avg_sale','Avg sale (7d)'],['sold_7d','Sold in 7d'],['sales_per_day','Sold/day'],
+  ['listings','Listings'],['net','Net/unit'],['daily_profit','Daily profit'],['start_qty','Start qty'],['data','Data'],['score','Score']
 ];
 
 function render(d) {
-  const pos = rows.filter(r => r.net > 0);
-  const best = (fn) => pos.length ? pos.reduce((a, b) => fn(b) > fn(a) ? b : a) : null;
-  const passive = best(r => r.score - (r.listings || 0));
+  const ok = rows.filter(r => r.net > 0 && r.start_qty > 0 && r.sold_7d > 0);
+  const best = (fn) => ok.length ? ok.reduce((a, b) => fn(b) > fn(a) ? b : a) : null;
+  const passive = best(r => r.days_sold * 1e6 + r.daily_profit);
   const volume = best(r => r.sales_per_day);
   const margin = best(r => r.net);
-  const pick = (t, r, v) => `<div class="pick"><span>${t}</span><b>${r ? r.item : '–'}</b><span>${r ? v(r) : 'no profitable item'}</span></div>`;
+  const pick = (t, r, v) => `<div class="pick"><span>${t}</span><b>${r ? r.item : '–'}</b><span>${r ? v(r) : 'no item qualifies yet'}</span></div>`;
   let h = '';
   if (d.problems.length) h += `<div class="msg warn"><b>Skipped:</b> ${d.problems.join('; ')}</div>`;
   if (!rows.length) { $('out').innerHTML = h + '<p class="empty">No items could be scanned.</p>'; return; }
   h += '<div class="picks">' +
-    pick('Best passive pick', passive, r => `${r.sales_per_day}/day, ${r.listings} listings`) +
+    pick('Best passive pick', passive, r => `sold on ${r.days_sold} of the last 7 days, ${r.listings} listings`) +
     pick('Best high-volume flip', volume, r => `${r.sales_per_day} sold/day`) +
     pick('Best margin per unit', margin, r => `${fmt(r.net)} gil net`) + '</div>';
   h += '<div class="panel tablebox"><table><thead><tr><th>#</th>' +
     COLS.map(([k, t]) => `<th data-k="${k}" title="Sort by ${t}">${t}</th>`).join('') +
     '</tr></thead><tbody id="tb"></tbody></table></div>';
-  h += `<p class="meta">Fetched ${gmt8(d.fetched)}. Tax ${(d.tax * 100).toFixed(1)}%, your share of sales ${(d.share * 100).toFixed(0)}%. Start qty is about 3 days of your share, split across the top profitable items within your budget. "Game data price" for an NPC cost means no vendor has been confirmed, so check on Garland Tools before buying.</p>`;
+  h += `<p class="meta">Fetched ${gmt8(d.fetched)}. Tax ${(d.tax * 100).toFixed(1)}%, your share of sales ${(d.share * 100).toFixed(0)}%. Items are ranked by realizable daily profit. Picks only include items that sold in the last 7 days and have a start qty above 0. Rows marked Stale or Very stale rest on old uploads, so confirm in game before buying. An asterisk on the cost means no vendor is confirmed.</p>`;
   $('out').innerHTML = h;
   document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
     const k = th.dataset.k; sortDir = sortKey === k ? -sortDir : -1; sortKey = k; body();
@@ -206,10 +208,11 @@ function body() {
     return (typeof x === 'string' ? x.localeCompare(y) : x - y) * sortDir;
   });
   $('tb').innerHTML = s.map((r, i) => `<tr><td>${i + 1}</td><td>${r.item}</td>
-    <td title="${r.npc_note || ''}">${r.buy_from}${r.npc_note.startsWith('game') ? ' *' : ''}</td>
-    <td>${fmt(r.cost)}</td><td>${fmt(r.avg_sale)}</td><td>${r.sales_per_day}</td><td>${fmt(r.listings)}</td>
-    <td class="${r.net > 0 ? 'gain' : 'loss'}">${fmt(r.net)}</td><td>${r.roi ?? '–'}</td>
-    <td class="${r.daily_profit > 0 ? 'gain' : 'loss'}">${fmt(r.daily_profit)}</td><td>${fmt(r.start_qty)}</td><td>${r.score}</td></tr>`).join('');
+    <td title="${r.npc_note || ''}">${fmt(r.cost)}${r.npc_note.startsWith('game') ? ' *' : ''}</td>
+    <td>${fmt(r.avg_sale)}</td><td>${r.sold_7d}</td><td>${r.sales_per_day}</td><td>${fmt(r.listings)}</td>
+    <td class="${r.net > 0 ? 'gain' : 'loss'}">${fmt(r.net)}</td>
+    <td class="${r.daily_profit > 0 ? 'gain' : 'loss'}">${fmt(r.daily_profit)}</td><td>${fmt(r.start_qty)}</td>
+    <td><span class="tag ${r.data === 'Fresh' ? 'ok' : 'bad'}" title="${r.data_age_h == null ? 'No upload recorded' : 'Last upload ' + r.data_age_h + 'h ago'}">${r.data}${r.data_age_h != null && r.data !== 'Fresh' ? ' ' + r.data_age_h + 'h' : ''}</span></td><td>${r.score}</td></tr>`).join('');
 }
 </script>
 </body>
