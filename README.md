@@ -1,9 +1,8 @@
 # Kujata flip board (Vercel)
 
-index.html        the dashboard (static)
-api/scan.py       Python serverless function that does the Universalis scan
+public/index.html  the dashboard page
+app.py            Flask backend that does the Universalis scan
 requirements.txt  requests
-vercel.json       allows the scan up to 60s
 
 ## Deploy (GitHub route, easiest)
 1. Create a free account at github.com, then a new repository (e.g. kujata-dashboard).
