@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kujata flip board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e9eef2;--panel:#f7f9fb;--ink:#13212c;--mute:#5b6b78;--line:#cdd7de;--gain:#0b7a66;--loss:#b3372b;--pick:#d9ecf3;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 "IBM Plex Sans",system-ui,sans-serif}
+h1,h2{font-family:"Bricolage Grotesque",sans-serif;margin:0;letter-spacing:-.01em}
+h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;line-height:1}
+h2{font-size:1.15rem;font-weight:600}
+.wrap{max-width:1240px;margin:0 auto;padding:2rem 1.2rem 4rem}
+header p{margin:.6rem 0 0;color:var(--mute);max-width:62ch}
+.layout{display:grid;grid-template-columns:320px 1fr;gap:1.4rem;margin-top:1.8rem;align-items:start}
+@media(max-width:900px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:1.1rem}
+label{display:block;font-weight:600;font-size:.88rem;margin:1rem 0 .3rem}
+label small{font-weight:400;color:var(--mute)}
+textarea,input{width:100%;font:inherit;border:1px solid var(--line);border-radius:4px;padding:.5rem .6rem;background:#fff;color:var(--ink)}
+textarea{min-height:230px;font-family:ui-monospace,Menlo,monospace;font-size:.82rem}
+.row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem}
+button.go{margin-top:1.1rem;width:100%;font:600 1rem "IBM Plex Sans";background:var(--ink);color:#fff;border:0;border-radius:4px;padding:.75rem;cursor:pointer}
+button.go:disabled{opacity:.55;cursor:wait}
+:focus-visible{outline:3px solid #2a8fb3;outline-offset:2px}
+.picks{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;margin-bottom:1rem}
+@media(max-width:700px){.picks{grid-template-columns:1fr}}
+.pick{background:var(--pick);border-radius:6px;padding:.8rem 1rem}
+.pick span{display:block;font-size:.8rem;color:var(--mute)}
+.pick b{font-family:"Bricolage Grotesque";font-size:1.2rem}
+.tablebox{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.88rem}
+th,td{padding:.5rem .6rem;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}
+th{cursor:pointer;font-weight:600;background:var(--panel);position:sticky;top:0}
+th:hover{background:var(--pick)}
+td.gain{color:var(--gain);font-weight:600}td.loss{color:var(--loss);font-weight:600}
+.meta{color:var(--mute);font-size:.85rem;margin:.6rem 0 0}
+.msg{padding:1rem;border-radius:6px;margin-bottom:1rem}
+.err{background:#f6dcd8;color:#6d1f17}.warn{background:#f4ecd0;color:#52440d}
+.empty{color:var(--mute);padding:2rem 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Kujata flip board</h1>
+  <p>Live Universalis prices for Kujata, compared against NPC prices and the other Elemental worlds. Add items, press Scan, and read the ranking.</p>
+</header>
+
+<div class="layout">
+  <section class="panel" aria-label="Scan settings">
+    <h2>Items to scan</h2>
+    <label for="items">One per line <small>name, ease 0–1, NPC price (last two optional)</small></label>
+    <textarea id="items" spellcheck="false">Animal Glue, 1
+Quicksilver, 1
+Distilled Water, 1
+Rock Salt, 1
+Bronze Rivets, 1
+Maple Lumber, 0.3
+Hempen Yarn, 1
+Cotton Yarn, 1
+Beeswax, 1
+Alumen, 0.5
+Iron Ore, 0.5
+Mineral Water, 1
+Orange Juice, 1
+Raisins, 1</textarea>
+    <p class="meta">Ease: 1 = buy from an NPC, 0.5 = gather, 0.3 = craft. You can also enter a numeric item ID in place of a name.</p>
+    <div class="row">
+      <div><label for="share">Your share <small>%</small></label><input id="share" type="number" value="15" min="1" max="100"></div>
+      <div><label for="tax">Tax <small>%</small></label><input id="tax" type="number" value="5" min="0" max="20" step="0.5"></div>
+      <div><label for="budget">Budget <small>gil</small></label><input id="budget" type="number" value="100000" min="1000" step="1000"></div>
+    </div>
+    <button class="go" id="go">Scan Kujata</button>
+  </section>
+
+  <section aria-live="polite">
+    <div id="out"><p class="empty">No scan yet. Press Scan Kujata to pull current prices.</p></div>
+  </section>
+</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = n => n == null ? '–' : Number(n).toLocaleString('en-US');
+let rows = [], sortKey = 'score', sortDir = -1;
+
+function parseItems() {
+  return $('items').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const [a, e, n] = l.split(',').map(s => s.trim());
+    const o = /^\d+$/.test(a) ? { id: +a } : { name: a };
+    if (e !== undefined && e !== '') o.ease = +e;
+    if (n !== undefined && n !== '') o.npc = +n;
+    return o;
+  });
+}
+
+$('go').addEventListener('click', async () => {
+  const btn = $('go'); btn.disabled = true; btn.textContent = 'Scanning… (up to a minute)';
+  $('out').innerHTML = '<p class="empty">Fetching prices from Universalis…</p>';
+  try {
+    const r = await fetch('/api/scan', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: parseItems(), share: $('share').value / 100, tax: $('tax').value / 100, budget: +$('budget').value })
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) throw new Error(d.error || r.status);
+    rows = d.rows; render(d);
+  } catch (e) {
+    $('out').innerHTML = `<div class="msg err"><b>Scan failed.</b> ${e.message}. Check the item names, then try again. If it keeps failing, Universalis may be slow; wait a minute and retry.</div>`;
+  } finally { btn.disabled = false; btn.textContent = 'Scan Kujata'; }
+});
+
+const COLS = [
+  ['item','Item'],['buy_from','Buy from'],['cost','Cost'],['avg_sale','Avg sale (7d)'],['sales_per_day','Sold/day'],
+  ['listings','Listings'],['net','Net/unit'],['roi','ROI %'],['daily_profit','Daily profit'],['start_qty','Start qty'],['score','Score']
+];
+
+function render(d) {
+  const pos = rows.filter(r => r.net > 0);
+  const best = (fn) => pos.length ? pos.reduce((a, b) => fn(b) > fn(a) ? b : a) : null;
+  const passive = best(r => r.score - (r.listings || 0));
+  const volume = best(r => r.sales_per_day);
+  const margin = best(r => r.net);
+  const pick = (t, r, v) => `<div class="pick"><span>${t}</span><b>${r ? r.item : '–'}</b><span>${r ? v(r) : 'no profitable item'}</span></div>`;
+  let h = '';
+  if (d.problems.length) h += `<div class="msg warn"><b>Skipped:</b> ${d.problems.join('; ')}</div>`;
+  if (!rows.length) { $('out').innerHTML = h + '<p class="empty">No items could be scanned.</p>'; return; }
+  h += '<div class="picks">' +
+    pick('Best passive pick', passive, r => `${r.sales_per_day}/day, ${r.listings} listings`) +
+    pick('Best high-volume flip', volume, r => `${r.sales_per_day} sold/day`) +
+    pick('Best margin per unit', margin, r => `${fmt(r.net)} gil net`) + '</div>';
+  h += '<div class="panel tablebox"><table><thead><tr><th>#</th>' +
+    COLS.map(([k, t]) => `<th data-k="${k}" title="Sort by ${t}">${t}</th>`).join('') +
+    '</tr></thead><tbody id="tb"></tbody></table></div>';
+  h += `<p class="meta">Fetched ${d.fetched} UTC. Tax ${(d.tax * 100).toFixed(1)}%, your share of sales ${(d.share * 100).toFixed(0)}%. Start qty is about 3 days of your share, split across the top profitable items within your budget. "Game data price" for an NPC cost means no vendor has been confirmed, so check on Garland Tools before buying.</p>`;
+  $('out').innerHTML = h;
+  document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
+    const k = th.dataset.k; sortDir = sortKey === k ? -sortDir : -1; sortKey = k; body();
+  });
+  body();
+}
+
+function body() {
+  const s = [...rows].sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    if (x == null) return 1; if (y == null) return -1;
+    return (typeof x === 'string' ? x.localeCompare(y) : x - y) * sortDir;
+  });
+  $('tb').innerHTML = s.map((r, i) => `<tr><td>${i + 1}</td><td>${r.item}</td>
+    <td title="${r.npc_note || ''}">${r.buy_from}${r.npc_note.startsWith('game') ? ' *' : ''}</td>
+    <td>${fmt(r.cost)}</td><td>${fmt(r.avg_sale)}</td><td>${r.sales_per_day}</td><td>${fmt(r.listings)}</td>
+    <td class="${r.net > 0 ? 'gain' : 'loss'}">${fmt(r.net)}</td><td>${r.roi ?? '–'}</td>
+    <td class="${r.daily_profit > 0 ? 'gain' : 'loss'}">${fmt(r.daily_profit)}</td><td>${fmt(r.start_qty)}</td><td>${r.score}</td></tr>`).join('');
+}
+</script>
+</body>
+</html>
